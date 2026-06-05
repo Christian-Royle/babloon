@@ -32,6 +32,13 @@
             margin-bottom: 0.5rem;
             text-shadow: 0 0 20px #ff00de, 0 0 30px #ff00de;
             animation: pulse 2s infinite ease-in-out;
+            transition: text-shadow 0.4s ease, transform 0.4s ease, filter 0.4s ease;
+        }
+
+        h1.highlighted {
+            text-shadow: 0 0 40px #ffffff, 0 0 70px #ff00de;
+            transform: scale(1.1);
+            filter: brightness(1.5);
         }
 
         .age {
@@ -43,6 +50,20 @@
             -webkit-text-fill-color: transparent;
             filter: drop-shadow(0 0 15px rgba(255, 255, 255, 0.5));
             animation: pulse 1.5s infinite ease-in-out, colorShift 5s infinite linear;
+        }
+
+        .age.final {
+            background: linear-gradient(to bottom, #fff, #ffd700) !important;
+            -webkit-background-clip: text !important;
+            -webkit-text-fill-color: transparent !important;
+            filter: drop-shadow(0 0 30px #ffd700) !important;
+            animation: finalPulse 1.5s forwards ease-in-out !important;
+        }
+
+        @keyframes finalPulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(2); filter: drop-shadow(0 0 60px #ffd700); }
+            100% { transform: scale(1); filter: drop-shadow(0 0 40px #ffd700); }
         }
 
         canvas {
@@ -68,7 +89,7 @@
 
     <div id="card-container">
         <h1>Happy Birthday Leonie&#33;</h1>
-        <span class="age">19</span>
+        <span class="age">00</span>
     </div>
 
     <script>
@@ -76,6 +97,283 @@
         const ctx = canvas.getContext('2d');
         let particles = [];
         let balloons = [];
+        let boats = [];
+        let animationsStarted = false;
+
+        function drawSkyline(time) {
+            const h = canvas.height;
+            const w = canvas.width;
+            const ground = h * 0.85; // Leave space for the river
+
+            // Draw the river background (dark blue, almost black)
+            ctx.fillStyle = '#02040a';
+            ctx.fillRect(0, ground, w, h - ground);
+
+            // Draw sweeping searchlights behind the buildings
+            if (animationsStarted) {
+                const h1 = document.querySelector('h1');
+                let isAnyHighlighting = false;
+                
+                const lights = [
+                    { x: w * 0.22, y: ground, base: -Math.PI / 2, range: 0.8, speed: 0.0007, color: 'rgba(255, 255, 255, 0.15)' },
+                    { x: w * 0.75, y: ground, base: -Math.PI / 2, range: 0.6, speed: 0.0005, color: 'rgba(200, 220, 255, 0.15)' }
+                ];
+
+                lights.forEach(light => {
+                    const sweep = Math.sin(time * light.speed) * light.range;
+                    const currentAngle = light.base + sweep;
+
+                    // Draw Reflection in water
+                    ctx.save();
+                    const refX = light.x + Math.sin(time / 400 + light.y / 10) * 2.5;
+                    ctx.translate(refX, light.y);
+                    ctx.scale(1, -1); // Flip vertically for reflection
+                    ctx.rotate(currentAngle + Math.PI / 2);
+                    const refGrad = ctx.createLinearGradient(0, 0, 0, -(h - ground));
+                    refGrad.addColorStop(0, light.color.replace('0.15', '0.05')); // Fainter alpha for water
+                    refGrad.addColorStop(1, 'rgba(0,0,0,0)');
+                    ctx.fillStyle = refGrad;
+                    ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(-40, -(h - ground)); ctx.lineTo(40, -(h - ground));
+                    ctx.fill();
+                    ctx.restore();
+
+                    // Draw Main Beam in sky
+                    ctx.save();
+                    ctx.translate(light.x, light.y);
+                    ctx.rotate(currentAngle + Math.PI / 2); // Adjust so 0 is "up"
+                    
+                    const beamGrad = ctx.createLinearGradient(0, 0, 0, -h);
+                    beamGrad.addColorStop(0, light.color);
+                    beamGrad.addColorStop(1, 'rgba(0,0,0,0)');
+                    
+                    ctx.fillStyle = beamGrad;
+                    ctx.beginPath();
+                    ctx.moveTo(0, 0);
+                    ctx.lineTo(-60, -h); // Wider beam for Gotham feel
+                    ctx.lineTo(60, -h);
+                    ctx.fill();
+                    ctx.restore();
+
+                    // Highlighting logic: check if beam points toward center text
+                    const angleToText = Math.atan2((h / 2) - light.y, (w / 2) - light.x);
+                    if (Math.abs(currentAngle - angleToText) < 0.12) isAnyHighlighting = true;
+                });
+
+                if (isAnyHighlighting) h1.classList.add('highlighted');
+                else h1.classList.remove('highlighted');
+
+                // Draw Unicorn-Signal with handheld jitter and wavy reflection
+                const moveX = Math.sin(time * 0.001) * 2 + Math.sin(time * 0.01) * 0.2;
+                const moveY = Math.cos(time * 0.0008) * 1 + Math.cos(time * 0.012) * 0.2;
+                const sX = w * 0.5 + 100 + moveX; // Shifted right by its new width (100px)
+                const sY = h * 0.22 + moveY;
+
+                const drawSignal = (x, y, isRef = false) => {
+                    ctx.save();
+                    const flicker = 0.9 + Math.random() * 0.1;
+                    const alpha = isRef ? 0.2 : 1.0;
+                    const drawX = isRef ? x + Math.sin(time / 400 + y / 10) * 2.5 : x;
+
+                    ctx.translate(drawX, y);
+                    if (isRef) ctx.scale(1, -1); // Flips the signal vertically for the reflection
+                    ctx.scale(0.5, 0.5); // Reduce size by half
+
+                    // Glow & Circle
+                    const shadowGrad = ctx.createRadialGradient(0, 0, 0, 0, 0, 100);
+                    shadowGrad.addColorStop(0, `rgba(255, 255, 180, ${0.3 * flicker * alpha})`);
+                    shadowGrad.addColorStop(1, 'rgba(255, 255, 180, 0)');
+                    ctx.fillStyle = shadowGrad;
+                    ctx.beginPath(); ctx.arc(0, 0, 100, 0, Math.PI * 2); ctx.fill();
+
+                    ctx.beginPath(); ctx.arc(0, 0, 65, 0, Math.PI * 2);
+                    ctx.fillStyle = `rgba(255, 255, 220, ${0.4 * flicker * alpha})`;
+                    ctx.fill();
+
+                    // Silhouette
+                    ctx.fillStyle = isRef ? `rgba(5, 5, 10, ${alpha})` : '#05050a'; 
+                    ctx.beginPath();
+                    ctx.moveTo(-25, 40);
+                    ctx.bezierCurveTo(-40, 10, -20, -15, 0, -20);
+                    ctx.lineTo(35, -10);
+                    ctx.lineTo(30, 15);
+                    ctx.lineTo(10, 15);
+                    ctx.moveTo(-5, -20);
+                    ctx.lineTo(-10, -35);
+                    ctx.lineTo(-15, -18);
+                    ctx.moveTo(8, -20);
+                    ctx.lineTo(18, -55);
+                    ctx.lineTo(18, -15);
+                    ctx.fill();
+                    ctx.restore();
+                };
+
+                drawSignal(sX, ground + (h - ground) * 0.4, true); // River reflection
+                drawSignal(sX, sY, false); // Main signal
+            }
+
+            const renderCity = (isReflection = false) => {
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+                ctx.fillStyle = isReflection ? 'transparent' : '#05050a';
+
+                const getX = (xVal, yVal) => {
+                    if (!isReflection) return xVal;
+                    // Create a wavy distortion for the water
+                    return xVal + Math.sin(time / 400 + yVal / 10) * 2.5;
+                };
+
+                const drawBuilding = (x, width, height, type) => {
+                const bLeft = w * x;
+                const bWidth = w * width;
+                const bTop = isReflection ? ground + (h * height) : ground - (h * height);
+                
+                ctx.beginPath();
+                ctx.moveTo(getX(bLeft, ground), ground);
+                
+                switch(type) {
+                    case 'stepped': // Gotham/Art Deco style
+                        ctx.lineTo(getX(bLeft, bTop + 60), bTop + 60);
+                        ctx.lineTo(getX(bLeft + bWidth * 0.2, bTop + 60), bTop + 60);
+                        ctx.lineTo(getX(bLeft + bWidth * 0.2, bTop + 30), bTop + 30);
+                        ctx.lineTo(getX(bLeft + bWidth * 0.4, bTop + 30), bTop + 30);
+                        ctx.lineTo(getX(bLeft + bWidth * 0.4, bTop), bTop);
+                        ctx.lineTo(getX(bLeft + bWidth * 0.6, bTop), bTop);
+                        ctx.lineTo(getX(bLeft + bWidth * 0.6, bTop + 30), bTop + 30);
+                        ctx.lineTo(getX(bLeft + bWidth * 0.8, bTop + 30), bTop + 30);
+                        ctx.lineTo(getX(bLeft + bWidth * 0.8, bTop + 60), bTop + 60);
+                        ctx.lineTo(getX(bLeft + bWidth, bTop + 60), bTop + 60);
+                        break;
+                    case 'pencil': // Messeturm style
+                        ctx.lineTo(getX(bLeft, bTop + 40), bTop + 40);
+                        ctx.lineTo(getX(bLeft + bWidth * 0.2, bTop + 40), bTop + 40);
+                        ctx.lineTo(getX(bLeft + bWidth * 0.5, bTop), bTop);
+                        ctx.lineTo(getX(bLeft + bWidth * 0.8, bTop + 40), bTop + 40);
+                        ctx.lineTo(getX(bLeft + bWidth, bTop + 40), bTop + 40);
+                        break;
+                    case 'spire': // Commerzbank style
+                        ctx.lineTo(getX(bLeft, bTop + 40), bTop + 40);
+                        ctx.lineTo(getX(bLeft + bWidth * 0.1, bTop + 40), bTop + 40);
+                        ctx.lineTo(getX(bLeft + bWidth * 0.5, bTop), bTop);
+                        ctx.lineTo(getX(bLeft + bWidth * 0.9, bTop + 40), bTop + 40);
+                        ctx.lineTo(getX(bLeft + bWidth, bTop + 40), bTop + 40);
+                        // Add an antenna spire
+                        ctx.moveTo(getX(bLeft + bWidth * 0.5, bTop), bTop);
+                        ctx.lineTo(getX(bLeft + bWidth * 0.5, bTop - 30), bTop - 30);
+                        break;
+                    case 'crown': // Westendstrasse 1 style
+                        ctx.lineTo(getX(bLeft, bTop + 30), bTop + 30);
+                        ctx.bezierCurveTo(getX(bLeft, bTop), bTop, getX(bLeft + bWidth, bTop), bTop, getX(bLeft + bWidth, bTop + 30), bTop + 30);
+                        break;
+                    default: // Standard office building
+                        ctx.lineTo(getX(bLeft, bTop), bTop);
+                        ctx.lineTo(getX(bLeft + bWidth, bTop), bTop);
+                }
+                ctx.lineTo(getX(bLeft + bWidth, ground), ground);
+                ctx.fill();
+                ctx.stroke();
+
+                // Random lit windows (Batman 70s style)
+                if (!isReflection) {
+                    ctx.fillStyle = 'rgba(255, 255, 150, 0.4)';
+                    for (let wy = bTop + 80; wy < ground - 20; wy += 35) {
+                        for (let wx = bLeft + 10; wx < bLeft + bWidth - 10; wx += 25) {
+                            if (Math.random() > 0.9) ctx.fillRect(wx, wy, 3, 5);
+                        }
+                    }
+                }
+                ctx.fillStyle = isReflection ? 'transparent' : '#05050a';
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+            };
+
+            // Create the Frankfurt-Gotham Mashup Skyline
+            drawBuilding(0.01, 0.04, 0.2, 'flat');
+            drawBuilding(0.06, 0.08, 0.32, 'stepped');
+            
+            // Europaturm (Antenna Tower)
+            ctx.beginPath();
+            ctx.moveTo(getX(w * 0.16, ground), ground);
+            ctx.lineTo(getX(w * 0.16, h * 0.6), h * 0.6);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.ellipse(getX(w * 0.16, h * 0.68), h * 0.68, 16, 10, 0, 0, Math.PI * 2);
+            ctx.fill(); ctx.stroke();
+
+            drawBuilding(0.2, 0.05, 0.38, 'pencil'); // Messeturm
+            drawBuilding(0.27, 0.06, 0.25, 'flat');
+            drawBuilding(0.35, 0.09, 0.48, 'spire');  // Commerzbank
+            drawBuilding(0.48, 0.07, 0.42, 'crown');  // Westendstrasse 1
+            drawBuilding(0.58, 0.08, 0.3, 'stepped');
+            
+            // Main Tower (Circular landmark)
+            ctx.beginPath();
+            ctx.moveTo(getX(w * 0.68, ground), ground);
+            ctx.lineTo(getX(w * 0.68, h * 0.65), h * 0.65);
+            ctx.arc(getX(w * 0.71, h * 0.65), h * 0.65, w * 0.03, Math.PI, 0);
+            ctx.lineTo(getX(w * 0.74, ground), ground);
+            ctx.fill(); ctx.stroke();
+            
+            drawBuilding(0.78, 0.06, 0.35, 'stepped');
+            drawBuilding(0.86, 0.05, 0.28, 'flat');
+            drawBuilding(0.92, 0.06, 0.36, 'pencil');
+            };
+
+            const renderWalkway = () => {
+                const lHeight = 25;
+                const spacing = w / 10;
+                
+                // Walkway edge line
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+                ctx.beginPath();
+                ctx.moveTo(0, ground);
+                ctx.lineTo(w, ground);
+                ctx.stroke();
+
+                for (let i = 0; i <= 10; i++) {
+                    const lx = i * spacing;
+                    const topY = ground - lHeight;
+                    
+                    // Lampost silhouette
+                    ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+                    ctx.beginPath();
+                    ctx.moveTo(lx, ground);
+                    ctx.lineTo(lx, topY);
+                    ctx.stroke();
+
+                    // Glowing light bulb
+                    const flicker = 0.8 + Math.random() * 0.2;
+                    const grad = ctx.createRadialGradient(lx, topY, 0, lx, topY, 12);
+                    grad.addColorStop(0, `rgba(255, 255, 150, ${0.5 * flicker})`);
+                    grad.addColorStop(1, 'rgba(255, 255, 150, 0)');
+                    ctx.fillStyle = grad;
+                    ctx.beginPath();
+                    ctx.arc(lx, topY, 12, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            };
+
+            ctx.save();
+            
+            // 1. Draw Real City
+            renderCity();
+
+            // 2. Draw Faint Reflection
+            ctx.save(); ctx.globalAlpha = 0.2; renderCity(true); ctx.restore();
+
+            // 3. Walkway (Removed reflection as requested)
+            renderWalkway();
+
+            // 4. Add River Ripples (subtle horizontal lines)
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
+            ctx.lineWidth = 1;
+            for (let i = 1; i <= 4; i++) {
+                const ry = ground + (i * (h - ground) / 5);
+                ctx.beginPath();
+                ctx.moveTo(0, ry);
+                ctx.lineTo(w, ry);
+                ctx.stroke();
+            }
+
+            ctx.restore();
+        }
 
         // Audio setup for procedural "pop" sound
         const AudioContext = window.AudioContext || window.webkitAudioContext;
@@ -109,17 +407,75 @@
         window.addEventListener('resize', resize);
         resize();
 
+        class Boat {
+            constructor() {
+                this.reset();
+                this.x = Math.random() * canvas.width;
+            }
+
+            reset() {
+                const ground = canvas.height * 0.85;
+                this.width = 45 + Math.random() * 35;
+                this.height = 7 + Math.random() * 4;
+                this.speed = (Math.random() * 0.15 + 0.08);
+                this.direction = Math.random() > 0.5 ? 1 : -1;
+                this.x = this.direction === 1 ? -this.width : canvas.width + this.width;
+                // Randomize depth within the river area
+                this.y = ground + 5 + Math.random() * (canvas.height - ground - 15);
+            }
+
+            update() {
+                this.x += this.speed * this.direction;
+                if (this.direction === 1 && this.x > canvas.width + this.width) this.reset();
+                if (this.direction === -1 && this.x < -this.width) this.reset();
+            }
+
+            draw(time) {
+                const drawShape = (x, y, isRef = false) => {
+                    ctx.save();
+                    const drawX = isRef ? x + Math.sin(time / 400 + y / 10) * 2.5 : x;
+                    ctx.translate(drawX, y);
+                    if (isRef) {
+                        ctx.scale(1, -0.6); // Squash reflection vertically
+                        ctx.globalAlpha = 0.2;
+                    }
+
+                    ctx.fillStyle = '#05050a';
+                    ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+                    
+                    // Draw Barge Hull
+                    ctx.beginPath();
+                    ctx.moveTo(0, 0);
+                    ctx.lineTo(this.width, 0);
+                    ctx.lineTo(this.width - 8, this.height);
+                    ctx.lineTo(8, this.height);
+                    ctx.closePath();
+                    ctx.fill();
+                    if (!isRef) ctx.stroke();
+
+                    // Draw Small Cabin
+                    ctx.fillRect(this.width * 0.7, -this.height * 0.6, this.width * 0.15, this.height * 0.6);
+                    ctx.restore();
+                };
+                drawShape(this.x, this.y, true);
+                drawShape(this.x, this.y, false);
+            }
+        }
+
+        // Initialize two boats
+        boats = [new Boat(), new Boat()];
+
         class Particle {
             constructor(x, y, color) {
                 this.x = x;
                 this.y = y;
                 this.color = color;
                 this.velocity = {
-                    x: (Math.random() - 0.5) * 8,
-                    y: (Math.random() - 0.5) * 8
+                    x: (Math.random() - 0.5) * 15,
+                    y: (Math.random() - 0.5) * 15
                 };
                 this.alpha = 1;
-                this.friction = 0.97;
+                this.friction = 0.98;
             }
 
             draw() {
@@ -137,7 +493,7 @@
                 this.velocity.y *= this.friction;
                 this.x += this.velocity.x;
                 this.y += this.velocity.y;
-                this.alpha -= 0.01;
+                this.alpha -= 0.007;
             }
         }
 
@@ -229,14 +585,25 @@
         function createFirework(x, y) {
             const colors = ['#ff00de', '#ff77e9', '#00d4ff', '#ffffff', '#ffff00'];
             const color = colors[Math.floor(Math.random() * colors.length)];
-            for (let i = 0; i < 40; i++) {
+            for (let i = 0; i < 100; i++) {
                 particles.push(new Particle(x, y, color));
             }
         }
 
-        function animate() {
+        function animate(time) {
             requestAnimationFrame(animate);
+            
+            // Prevent logic errors on the very first call if time is undefined
+            if (!time) return;
+
             ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            drawSkyline(time);
+
+            boats.forEach(boat => {
+                boat.update();
+                boat.draw(time);
+            });
 
             particles.forEach((particle, i) => {
                 if (particle.alpha > 0) {
@@ -255,13 +622,13 @@
                 }
             });
 
-            if (Math.random() < 0.05) {
-                createFirework(Math.random() * canvas.width, Math.random() * canvas.height * 0.7);
+            if (animationsStarted && Math.random() < 0.05) {
+                createFirework(Math.random() * canvas.width, Math.random() * canvas.height * 0.45);
             }
         }
 
         function createUnicorn() {
-            if (balloons.length < 3) {
+            if (animationsStarted && balloons.length < 3) {
                 balloons.push(new UnicornBalloon());
             }
         }
@@ -271,11 +638,51 @@
 
         // Also launch firework on click
         canvas.addEventListener('mousedown', (e) => {
+            if (!animationsStarted) return;
             if (audioCtx.state === 'suspended') audioCtx.resume();
-            createFirework(e.clientX, e.clientY);
+            // Only allow fireworks above the skyline (top 50% of screen)
+            const fireworkY = Math.min(e.clientY, canvas.height * 0.5);
+            createFirework(e.clientX, fireworkY);
         });
 
+        function startAgeCounter() {
+            const ageElement = document.querySelector('.age');
+            const startTime = performance.now();
+            
+            function update(now) {
+                const elapsed = now - startTime;
+                let value;
+                
+                if (elapsed < 1000) {
+                    // Part 1: 0 to 3 in 1 second (approx 250ms per digit)
+                    value = Math.floor(elapsed / 250);
+                } else if (elapsed < 4000) {
+                    // Part 2: 3 to 19 in 3 seconds, accelerating
+                    const p = (elapsed - 1000) / 3000;
+                    // Math.pow(p, 1.5) creates the "speed up" feel
+                    value = 3 + Math.floor(Math.pow(p, 1.5) * 16.99);
+                } else {
+                    value = 19;
+                }
+                
+                ageElement.textContent = value.toString().padStart(2, '0');
+                
+                if (elapsed < 4000) {
+                    requestAnimationFrame(update);
+                } else {
+                    animationsStarted = true;
+                    ageElement.classList.add('final');
+                    // Grand finale: trigger multiple fireworks at once
+                    for (let i = 0; i < 10; i++) {
+                        createFirework(Math.random() * canvas.width, Math.random() * canvas.height * 0.45);
+                    }
+                }
+            }
+            requestAnimationFrame(update);
+        }
+
         animate();
+        startAgeCounter();
     </script>
 </body>
 </html>
